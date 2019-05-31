@@ -128,6 +128,7 @@ class CommInfoBase(with_metaclass(MetaParams)):
         ('interest_long', False),
         ('leverage', 1.0),
         ('automargin', False),
+        ('inverse', False)
     )
 
     def __init__(self):
@@ -209,6 +210,8 @@ class CommInfoBase(with_metaclass(MetaParams)):
         if not self._stocklike:
             return abs(size) * self.get_margin(price)
 
+        if self.p.inverse:
+            return size
         return size * price
 
     def getvalue(self, position, price):
@@ -219,8 +222,13 @@ class CommInfoBase(with_metaclass(MetaParams)):
 
         size = position.size
         if size >= 0:
+            if self.p.inverse:
+                return size
             return size * price
 
+        if self.p.inverse:
+            value = size
+            value += (position.price - price) * size / price
         # With stocks, a short position is worth more as the price goes down
         value = position.price * size  # original value
         value += (position.price - price) * size  # increased value
@@ -232,7 +240,10 @@ class CommInfoBase(with_metaclass(MetaParams)):
         pseudoexec: if True the operation has not yet been executed
         '''
         if self._commtype == self.COMM_PERC:
-            return abs(size) * self.p.commission * price
+            if self.p.inverse:
+                return abs(size) * self.p.commission
+            else:
+                return abs(size) * self.p.commission * price
 
         return abs(size) * self.p.commission
 
@@ -246,11 +257,15 @@ class CommInfoBase(with_metaclass(MetaParams)):
 
     def profitandloss(self, size, price, newprice):
         '''Return actual profit and loss a position has'''
+        if self.p.inverse:
+            return size * (newprice - price) * self.p.mult / newprice
         return size * (newprice - price) * self.p.mult
 
     def cashadjust(self, size, price, newprice):
         '''Calculates cash adjustment for a given price difference'''
         if not self._stocklike:
+            if self.p.inverse:
+                return size * (newprice - price) * self.p.mult / newprice
             return size * (newprice - price) * self.p.mult
 
         return 0.0
